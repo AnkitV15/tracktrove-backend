@@ -50,6 +50,8 @@ public class Transaction {
     private UUID vendorId;
     private String channel;
 
+    private Integer retryCount;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -60,6 +62,9 @@ public class Transaction {
     protected void onCreate() {
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
+        if(this.retryCount == null) {
+            this.retryCount = 0;
+        }
     }
 
     @jakarta.persistence.PreUpdate

@@ -11,4 +11,10 @@ import java.util.UUID;
 public interface TraceRepository extends JpaRepository<Trace, UUID> {
     List<Trace> findByTransactionId(UUID transactionId);
 
+    List<Trace> findByTransactionIdOrderByTraceTimeDesc(UUID transactionId);
+
+    List<Trace> findByTransactionIdAndStepNameOrderByTraceTimeDesc(UUID transactionId, String stepName);
+
+    Trace findFirstByTransactionIdAndErrorStackIsNotNullOrderByTraceTimeDesc(UUID transactionId);
+
 }

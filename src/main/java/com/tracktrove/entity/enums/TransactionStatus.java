@@ -8,5 +8,7 @@ public enum TransactionStatus {
     REFUNDED,
     SETTLED,
     DISPUTED,
-    RETRIED // Add any other statuses you plan to use
+    RETRIED, // Add any other statuses you plan to use
+    RETRY_PENDING,
+    PERMANENTLY_FAILED
 }
