@@ -14,6 +14,7 @@ import jakarta.validation.Valid; // Import for validation
 import java.util.List;
 import java.util.UUID;
 
+@CrossOrigin(origins = "http://172.25.160.1:5500")
 @RestController
 @RequestMapping("/api/transactions") // Base path for transaction related APIs
 public class TransactionController {
@@ -73,6 +74,12 @@ public class TransactionController {
             // Handle case where transaction is not found or other errors
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null); // Or a custom error response
         }
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Transaction>> getAllTransactions() {
+        List<Transaction> transactions = transactionService.getAllTransactions();
+        return ResponseEntity.ok(transactions);
     }
 
     @GetMapping("/{id}")

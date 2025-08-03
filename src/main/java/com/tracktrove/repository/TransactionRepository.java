@@ -1,6 +1,5 @@
 package com.tracktrove.repository;
 
-import com.tracktrove.entity.Trace;
 import com.tracktrove.entity.Transaction;
 import com.tracktrove.entity.enums.TransactionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,5 +10,11 @@ import java.util.UUID;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+
     List<Transaction> findByCurrentStatus(TransactionStatus currentStatus);
+
+    // NEW METHOD: Find transactions whose status is in a given list of statuses
+    List<Transaction> findByCurrentStatusIn(List<TransactionStatus> currentStatuses);
+
+    // You might also need other custom query methods here
 }

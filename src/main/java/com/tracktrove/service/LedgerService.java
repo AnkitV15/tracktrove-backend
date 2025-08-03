@@ -1,11 +1,14 @@
 package com.tracktrove.service;
 
 import com.tracktrove.entity.LedgerEntry;
+import com.tracktrove.entity.Transaction;
 import com.tracktrove.entity.enums.LedgerType;
 import com.tracktrove.repository.LedgerEntryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -15,6 +18,11 @@ public class LedgerService {
 
     public LedgerService(LedgerEntryRepository ledgerRepo) {
         this.ledgerRepo = ledgerRepo;
+    }
+
+    @Transactional(readOnly = true)
+    public List<LedgerEntry> getAllLedgerEntry() {
+        return ledgerRepo.findAll();
     }
 
     public void recordEntry(UUID transactionId, Double amount, LedgerType type, String description)

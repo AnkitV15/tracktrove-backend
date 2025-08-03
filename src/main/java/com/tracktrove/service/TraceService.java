@@ -83,4 +83,5 @@ public class TraceService {
     public List<Trace> getRetryTracesForTransaction(UUID transactionId) {
         return traceRepo.findByTransactionIdOrderByTraceTimeDesc(transactionId); // Fetch all and let client filter or refine query
     }
+
 }

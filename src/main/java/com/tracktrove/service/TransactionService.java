@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,25 +15,23 @@ import java.util.UUID;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final TraceService traceService;
+    private final TraceService traceService; // Inject TraceService
 
-    // Define a maximum number of retries
-    private static final int MAX_RETRIES = 3; // Example: allow up to 3 retries
+    private static final int MAX_RETRIES = 3;
 
     public TransactionService(TransactionRepository transactionRepository, TraceService traceService) {
         this.transactionRepository = transactionRepository;
         this.traceService = traceService;
     }
 
-    // Helper method to create and save a transaction
     @Transactional
     private Transaction createAndSaveTransaction(
             UUID vendorId,
             BigDecimal amount,
             String currency,
             String channel,
-            String initialPayloadJson,
-            Double simulatedSuccessRate
+            String initialPayloadJson, // This is the 5th String argument
+            Double simulatedSuccessRate // This is the 6th argument
     ) {
         Transaction txn = new Transaction();
         txn.setVendorId(vendorId);
@@ -43,20 +40,18 @@ public class TransactionService {
         txn.setChannel(channel);
         txn.setInitialPayload(initialPayloadJson);
         txn.setSimulatedSuccessRate(simulatedSuccessRate);
-        txn.setRetryCount(0); // Initialize retry count to 0
+        txn.setRetryCount(0);
 
-        // Simulate initial success or failure
         if (Math.random() < simulatedSuccessRate) {
             txn.setCurrentStatus(TransactionStatus.INITIATED);
             System.out.println("Transaction " + txn.getId() + " initially INITIATED (simulated success).");
         } else {
-            txn.setCurrentStatus(TransactionStatus.FAILED); // Set to FAILED if initial simulation fails
+            txn.setCurrentStatus(TransactionStatus.FAILED);
             System.out.println("Transaction " + txn.getId() + " initially FAILED (simulated failure).");
-            // Log an initial failure trace
             traceService.createAndSaveTrace(
                     "INITIAL_FAILURE",
-                    initialPayloadJson, // DTO before (initial payload)
-                    null, // DTO after (no transformation yet)
+                    initialPayloadJson,
+                    null,
                     txn.getId(),
                     "Initial transaction simulation failed.",
                     0
@@ -73,9 +68,10 @@ public class TransactionService {
             BigDecimal amount,
             String currency,
             String channel,
-            String initialPayloadJson,
+            String initialPayloadJson, // This is the 5th String argument
             Double simulatedSuccessRate
     ) {
+        // FIX: Ensure all 6 arguments are passed to createAndSaveTransaction
         return createAndSaveTransaction(vendorId, amount, currency, channel, initialPayloadJson, simulatedSuccessRate);
     }
 
@@ -86,7 +82,7 @@ public class TransactionService {
                 transactionDTO.getAmount(),
                 transactionDTO.getCurrency(),
                 transactionDTO.getChannel(),
-                transactionDTO.getInitialPayloadJson(),
+                transactionDTO.getInitialPayloadJson(), // This was already correct in the DTO version
                 transactionDTO.getSimulatedSuccessRate()
         );
     }
@@ -95,7 +91,6 @@ public class TransactionService {
     public Transaction updateTransactionStatus(UUID transactionId, TransactionStatus newStatus) {
         return transactionRepository.findById(transactionId).map(txn -> {
             txn.setCurrentStatus(newStatus);
-            // updatedAt is handled by @PreUpdate
             return transactionRepository.save(txn);
         }).orElseThrow(() -> new RuntimeException("Transaction not found: " + transactionId));
     }
@@ -120,17 +115,20 @@ public class TransactionService {
         return transactionRepository.findByCurrentStatus(TransactionStatus.RETRY_PENDING);
     }
 
+    @Transactional(readOnly = true)
+    public List<Transaction> getAllTransactions() {
+        return transactionRepository.findAll();
+    }
+
     @Transactional
     public Transaction forceManualRetry(UUID transactionId) {
         return transactionRepository.findById(transactionId).map(txn -> {
-            // Only allow manual retry if not already settled or permanently failed
             if (txn.getCurrentStatus() == TransactionStatus.SETTLED ||
                     txn.getCurrentStatus() == TransactionStatus.PERMANENTLY_FAILED ||
                     txn.getCurrentStatus() == TransactionStatus.COMPLETED) {
                 throw new IllegalStateException("Cannot manually retry a transaction in status: " + txn.getCurrentStatus());
             }
 
-            // Increment retry count and set to RETRY_PENDING
             txn.setRetryCount(txn.getRetryCount() + 1);
             txn.setCurrentStatus(TransactionStatus.RETRY_PENDING);
             Transaction updatedTxn = transactionRepository.save(txn);

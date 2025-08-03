@@ -1,8 +1,8 @@
 package com.tracktrove.controller;
 
 import com.tracktrove.entity.LedgerEntry;
+import com.tracktrove.entity.Transaction;
 import com.tracktrove.repository.LedgerEntryRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +25,11 @@ public class LedgerController {
     public ResponseEntity<List<LedgerEntry>> getLedger(@PathVariable UUID transactionId) {
         List<LedgerEntry> entries = ledgerRepo.findByTransactionId(transactionId);
         return entries.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(entries);
+    }
+    @GetMapping
+    public ResponseEntity<List<LedgerEntry>> getAllLedgerEntry() {
+        List<LedgerEntry> ledger = ledgerRepo.findAll();
+        return ResponseEntity.ok(ledger);
     }
 }
 
