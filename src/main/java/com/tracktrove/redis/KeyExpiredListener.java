@@ -29,30 +29,39 @@ public class KeyExpiredListener implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         String expiredKey = message.toString();
+        System.out.println("[Redis] Key expired: " + expiredKey);
 
-        if (!expiredKey.startsWith("txn:")) return;
+        if (expiredKey.startsWith("txn:")) {
+            String id = expiredKey.replace("txn:", "");
+            try {
+                UUID txnId = UUID.fromString(id);
 
-        String txnIdStr = expiredKey.substring(4);
-        try {
-            UUID txnId = UUID.fromString(txnIdStr);
+                // ⛳ Escrow trigger
+                transactionService.updateTransactionStatus(txnId, TransactionStatus.ESCROW);
+                System.out.println("[Redis] Moved txn to ESCROW: " + txnId);
 
-            // Update status to ESCROW
-            var updatedTxn = transactionService.updateTransactionStatus(txnId, TransactionStatus.ESCROW);
+                // 🧾 Ledger entry
+                ledgerService.recordEntry(
+                        txnId,
+                        transactionService.getById(txnId).getAmount().doubleValue(),
+                        LedgerType.ESCROW,
+                        "Auto transition via Redis key expiration"
+                );
 
-            // Record trace
-            traceService.captureTrace("AUTO_ESCROW", null, null, txnId, null, 0);
-
-            // Record ledger
-            ledgerService.recordEntry(
-                txnId,
-                updatedTxn.getAmount().doubleValue(),
-                LedgerType.ESCROW,
-                "Auto-hold in escrow after Redis TTL"
-            );
-
-            System.out.println("🧬 TTL Escrow triggered for txn: " + txnId);
-        } catch (IllegalArgumentException e) {
-            System.out.println("❌ Invalid UUID: " + txnIdStr);
+                // 📜 Trace log
+                traceService.createAndSaveTrace(
+                        "AUTO_ESCROW",
+                        null,
+                        null,
+                        txnId,
+                        "Redis key expired; auto-moved to ESCROW.",
+                        0
+                );
+            } catch (Exception e) {
+                System.err.println("[Redis] Failed to process expired txn key: " + id);
+                e.printStackTrace();
+            }
         }
     }
+
 }

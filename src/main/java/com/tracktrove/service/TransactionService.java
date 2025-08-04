@@ -4,10 +4,12 @@ import com.tracktrove.entity.Transaction;
 import com.tracktrove.entity.enums.TransactionStatus;
 import com.tracktrove.repository.TransactionRepository;
 import com.tracktrove.dto.TransactionDTO;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,13 +17,27 @@ import java.util.UUID;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final TraceService traceService; // Inject TraceService
+    private final TraceService traceService;
+    private final RedisTemplate<String, String> redisTemplate;
 
     private static final int MAX_RETRIES = 3;
 
-    public TransactionService(TransactionRepository transactionRepository, TraceService traceService) {
+    public TransactionService(TransactionRepository transactionRepository,
+                              TraceService traceService,
+                              RedisTemplate<String, String> redisTemplate) {
         this.transactionRepository = transactionRepository;
         this.traceService = traceService;
+        this.redisTemplate = redisTemplate;
+    }
+
+    // Redis TTL extractor
+    private void enqueueTTLForInitiated(Transaction txn) {
+        String redisKey = "txn:" + txn.getId();
+        Duration ttl = Duration.ofMinutes(2);
+
+        // Set a blank value with TTL to trigger key expiration event
+        redisTemplate.opsForValue().set(redisKey, "", ttl);
+        System.out.println("[Redis] TTL key set for transaction: " + redisKey + " (expires in " + ttl.toSeconds() + "s)");
     }
 
     @Transactional
@@ -30,8 +46,8 @@ public class TransactionService {
             BigDecimal amount,
             String currency,
             String channel,
-            String initialPayloadJson, // This is the 5th String argument
-            Double simulatedSuccessRate // This is the 6th argument
+            String initialPayloadJson,
+            Double simulatedSuccessRate
     ) {
         Transaction txn = new Transaction();
         txn.setVendorId(vendorId);
@@ -42,25 +58,29 @@ public class TransactionService {
         txn.setSimulatedSuccessRate(simulatedSuccessRate);
         txn.setRetryCount(0);
 
+        Transaction savedTxn;
+
         if (Math.random() < simulatedSuccessRate) {
             txn.setCurrentStatus(TransactionStatus.INITIATED);
-            System.out.println("Transaction " + txn.getId() + " initially INITIATED (simulated success).");
+            savedTxn = transactionRepository.save(txn);
+            System.out.println("Transaction " + savedTxn.getId() + " initially INITIATED (simulated success).");
+            enqueueTTLForInitiated(savedTxn);
         } else {
             txn.setCurrentStatus(TransactionStatus.FAILED);
-            System.out.println("Transaction " + txn.getId() + " initially FAILED (simulated failure).");
+            savedTxn = transactionRepository.save(txn);
+            System.out.println("Transaction " + savedTxn.getId() + " initially FAILED (simulated failure).");
             traceService.createAndSaveTrace(
                     "INITIAL_FAILURE",
                     initialPayloadJson,
                     null,
-                    txn.getId(),
+                    savedTxn.getId(),
                     "Initial transaction simulation failed.",
                     0
             );
         }
 
-        return transactionRepository.save(txn);
+        return savedTxn;
     }
-
 
     @Transactional
     public Transaction initiateTransaction(
@@ -68,21 +88,22 @@ public class TransactionService {
             BigDecimal amount,
             String currency,
             String channel,
-            String initialPayloadJson, // This is the 5th String argument
+            String initialPayloadJson,
             Double simulatedSuccessRate
     ) {
-        // FIX: Ensure all 6 arguments are passed to createAndSaveTransaction
+        System.out.println("UUID-based transaction initiated, calling createAndSaveTransaction");
         return createAndSaveTransaction(vendorId, amount, currency, channel, initialPayloadJson, simulatedSuccessRate);
     }
 
     @Transactional
     public Transaction initiateTransaction(TransactionDTO transactionDTO) {
+        System.out.println("DTO-based transaction initiated, calling createAndSaveTransaction");
         return createAndSaveTransaction(
                 transactionDTO.getVendorId(),
                 transactionDTO.getAmount(),
                 transactionDTO.getCurrency(),
                 transactionDTO.getChannel(),
-                transactionDTO.getInitialPayloadJson(), // This was already correct in the DTO version
+                transactionDTO.getInitialPayloadJson(),
                 transactionDTO.getSimulatedSuccessRate()
         );
     }
@@ -91,7 +112,14 @@ public class TransactionService {
     public Transaction updateTransactionStatus(UUID transactionId, TransactionStatus newStatus) {
         return transactionRepository.findById(transactionId).map(txn -> {
             txn.setCurrentStatus(newStatus);
-            return transactionRepository.save(txn);
+            Transaction updatedTxn = transactionRepository.save(txn);
+
+            // Optional: enforce Redis TTL if status changes to INITIATED
+            if (newStatus == TransactionStatus.INITIATED) {
+                enqueueTTLForInitiated(updatedTxn);
+            }
+
+            return updatedTxn;
         }).orElseThrow(() -> new RuntimeException("Transaction not found: " + transactionId));
     }
 
@@ -102,7 +130,11 @@ public class TransactionService {
 
     @Transactional
     public Transaction save(Transaction transaction) {
-        return transactionRepository.save(transaction);
+        Transaction saved = transactionRepository.save(transaction);
+        if (saved.getCurrentStatus() == TransactionStatus.INITIATED) {
+            enqueueTTLForInitiated(saved);
+        }
+        return saved;
     }
 
     public Transaction getById(UUID id) {
@@ -141,6 +173,7 @@ public class TransactionService {
                     "Manual retry initiated by admin.",
                     updatedTxn.getRetryCount()
             );
+
             System.out.println("Manual retry forced for transaction: " + transactionId);
             return updatedTxn;
         }).orElseThrow(() -> new RuntimeException("Transaction not found for manual retry: " + transactionId));

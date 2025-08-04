@@ -31,17 +31,23 @@ public class SettlementJob implements Job {
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         List<Transaction> escrows = transactionRepository.findByCurrentStatus(TransactionStatus.ESCROW);
-        System.out.println("settlement job called: ");
-        for (Transaction txn : escrows) {
-            Transaction updated = transactionService.updateTransactionStatus(txn.getId(), TransactionStatus.SETTLED);
+        System.out.println("Settlement job called: " + escrows.size() + " transactions pending.");
 
-            ledgerService.recordEntry(
-                    updated.getId(),
-                    updated.getAmount().doubleValue(),
-                    LedgerType.SETTLEMENT,
-                    "Auto-settlement job"
-            );
-            System.out.println("Ledger & status updated for txn: " + updated.getId());
+        for (Transaction txn : escrows) {
+            try {
+                Transaction updated = transactionService.updateTransactionStatus(txn.getId(), TransactionStatus.SETTLED);
+
+                ledgerService.recordEntry(
+                        updated.getId(),
+                        updated.getAmount().doubleValue(),
+                        LedgerType.SETTLEMENT,
+                        "Auto-settlement job"
+                );
+
+                System.out.println("Ledger & status updated for txn: " + updated.getId());
+            } catch (Exception e) {
+                System.err.println("Failed settlement for txn " + txn.getId() + ": " + e.getMessage());
+            }
         }
     }
 }

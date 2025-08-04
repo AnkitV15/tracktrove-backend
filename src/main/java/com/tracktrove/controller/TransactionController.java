@@ -34,6 +34,8 @@ public class TransactionController {
             @Valid @RequestBody TransactionDTO transactionDTO
     ) {
         Transaction newTransaction = transactionService.initiateTransaction(transactionDTO);
+        System.out.println("🛬 Controller: /initiate endpoint hit");
+
         return new ResponseEntity<>(newTransaction, HttpStatus.CREATED);
     }
 
@@ -42,6 +44,7 @@ public class TransactionController {
         List<Transaction> pendingTransactions = transactionService.getRetryPendingTransactions();
         return ResponseEntity.ok(pendingTransactions);
     }
+
 
     @GetMapping("/{id}/retries")
     public ResponseEntity<List<Trace>> getTransactionRetryHistory(@PathVariable UUID id) {
@@ -83,10 +86,20 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Transaction> getTransactionById(@PathVariable UUID id) {
+    public ResponseEntity<Transaction> getStatus(@PathVariable UUID id) {
         try {
             Transaction transaction = transactionService.getById(id);
             return ResponseEntity.ok(transaction);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
+
+    @GetMapping("/{id}/status")
+    public ResponseEntity<String> getTransactionById(@PathVariable UUID id) {
+        try {
+            Transaction transaction = transactionService.getById(id);
+            return ResponseEntity.ok(transaction.getCurrentStatus().toString());
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }

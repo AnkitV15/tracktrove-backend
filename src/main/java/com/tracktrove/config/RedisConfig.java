@@ -10,16 +10,12 @@ import org.springframework.data.redis.listener.*;
 public class RedisConfig {
 
     @Bean
-    public RedisMessageListenerContainer redisListenerContainer(
-        RedisConnectionFactory connectionFactory,
-        KeyExpiredListener keyExpiredListener
-    ) {
+    public RedisMessageListenerContainer redisContainer(RedisConnectionFactory connectionFactory,
+                                                        KeyExpiredListener listener) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(
-            keyExpiredListener,
-            new PatternTopic("__keyevent@0__:expired")
-        );
+        container.addMessageListener(listener, new PatternTopic("__keyevent@0__:expired"));
         return container;
     }
+
 }
