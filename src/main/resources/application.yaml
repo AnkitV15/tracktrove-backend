@@ -1,6 +1,10 @@
 server:
   port: 8080
 
+cors:
+  allowed-origins:
+    - http://localhost:5173
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/tracktrove_db

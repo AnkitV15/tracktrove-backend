@@ -14,7 +14,7 @@ import jakarta.validation.Valid; // Import for validation
 import java.util.List;
 import java.util.UUID;
 
-@CrossOrigin(origins = "http://172.25.160.1:5500")
+@CrossOrigin(origins = "http://localhost:5173/")
 @RestController
 @RequestMapping("/api/transactions") // Base path for transaction related APIs
 public class TransactionController {
