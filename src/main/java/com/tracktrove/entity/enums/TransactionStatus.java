@@ -10,5 +10,5 @@ public enum TransactionStatus {
     DISPUTED,
     RETRIED, // Add any other statuses you plan to use
     RETRY_PENDING,
-    PERMANENTLY_FAILED
+    DISPUTE_OPEN, DISPUTE_RESOLVED, PERMANENTLY_FAILED
 }

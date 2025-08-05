@@ -3,8 +3,10 @@ package com.tracktrove.controller;
 import com.tracktrove.dto.TransactionDTO; // Import the DTO
 import com.tracktrove.entity.Trace;
 import com.tracktrove.entity.Transaction; // Import the Entity
+import com.tracktrove.entity.enums.TransactionStatus;
 import com.tracktrove.service.TraceService;
 import com.tracktrove.service.TransactionService;
+import com.tracktrove.service.WebSocketService; // Import the WebSocketService
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,10 +23,12 @@ public class TransactionController {
 
     private final TransactionService transactionService;
     private final TraceService traceService;
+    private final WebSocketService webSocketService; // Inject the WebSocketService
 
-    public TransactionController(TransactionService transactionService,TraceService traceService) {
+    public TransactionController(TransactionService transactionService, TraceService traceService, WebSocketService webSocketService) {
         this.transactionService = transactionService;
         this.traceService = traceService;
+        this.webSocketService = webSocketService;
     }
 
     // API: POST /api/transactions/initiate
@@ -45,14 +49,9 @@ public class TransactionController {
         return ResponseEntity.ok(pendingTransactions);
     }
 
-
     @GetMapping("/{id}/retries")
     public ResponseEntity<List<Trace>> getTransactionRetryHistory(@PathVariable UUID id) {
-        // Here, you might want to filter traces specific to retry attempts
-        // For now, get all traces and let the client filter or refine TraceService method
-        List<Trace> retryHistory = traceService.getTracesForTransaction(id); // Using general trace method
-        // If you want only specific retry traces, you'd refine getRetryTracesForTransaction in TraceService
-        // List<Trace> retryHistory = traceService.getRetryTracesForTransaction(id);
+        List<Trace> retryHistory = traceService.getTracesForTransaction(id);
         if (retryHistory.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -63,7 +62,7 @@ public class TransactionController {
     public ResponseEntity<String> getTransactionErrorStack(@PathVariable UUID id) {
         String errorStack = traceService.getLastErrorStackForTransaction(id);
         if (errorStack == null || errorStack.isEmpty()) {
-            return ResponseEntity.notFound().build(); // Or HttpStatus.NO_CONTENT
+            return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(errorStack);
     }
@@ -74,8 +73,39 @@ public class TransactionController {
             Transaction updatedTransaction = transactionService.forceManualRetry(id);
             return ResponseEntity.ok(updatedTransaction);
         } catch (RuntimeException e) {
-            // Handle case where transaction is not found or other errors
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null); // Or a custom error response
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
+
+    @PatchMapping("/{id}/open-dispute")
+    public ResponseEntity<Transaction> openDispute(@PathVariable UUID id) {
+        try {
+            Transaction transaction = transactionService.getById(id);
+            if (transaction.getCurrentStatus() == TransactionStatus.SETTLED) {
+                Transaction updatedTransaction = transactionService.updateTransactionStatus(id, TransactionStatus.DISPUTE_OPEN);
+                webSocketService.broadcast(String.format("Dispute opened for transaction %s.", id.toString().substring(0, 8)));
+                return ResponseEntity.ok(updatedTransaction);
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            }
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+    }
+
+    @PatchMapping("/{id}/resolve-dispute")
+    public ResponseEntity<Transaction> resolveDispute(@PathVariable UUID id) {
+        try {
+            Transaction transaction = transactionService.getById(id);
+            if (transaction.getCurrentStatus() == TransactionStatus.DISPUTE_OPEN) {
+                Transaction updatedTransaction = transactionService.updateTransactionStatus(id, TransactionStatus.DISPUTE_RESOLVED);
+                webSocketService.broadcast(String.format("Dispute resolved for transaction %s.", id.toString().substring(0, 8)));
+                return ResponseEntity.ok(updatedTransaction);
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            }
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
 
@@ -104,11 +134,4 @@ public class TransactionController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
-    // You will add other API endpoints here as you build out features
-    // For example:
-    // @GetMapping("/{id}")
-    // public ResponseEntity<Transaction> getTransactionById(@PathVariable UUID id) { ... }
-
-    // @PatchMapping("/{id}/status")
-    // public ResponseEntity<Transaction> updateTransactionStatus(@PathVariable UUID id, @RequestBody Map<String, String> statusUpdate) { ... }
 }
