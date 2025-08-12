@@ -2,6 +2,10 @@
 
 This repository contains the backend services for **TrackTrove**, a sophisticated platform designed to simulate and visualize micro-transactions with complete traceability across various services. It acts as a "financial debugger" and "flow lab" for backend developers and operations teams, providing deep insights into transaction lifecycles, DTO evolutions, and failure scenarios.
 
+# TrackTrove Frontend
+[React 19 + Vite Powered admin dashboard(click here)](https://github.com/AnkitV15/tracktrove-frontend)
+
+
 ##  Concept
 
 In complex financial systems, understanding the journey of a micro-transaction (like a tip, bid adjustment, refund, or loyalty credit) can be incredibly challenging. TrackTrove addresses this by offering a sandboxed environment where these mini-transactions (₹1–₹500) can be fired, observed, and debugged. It's built to mimic the intricate flows of real-world platforms like Swiggy or Razorpay, without needing actual bank accounts.
